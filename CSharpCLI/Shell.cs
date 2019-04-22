@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
@@ -9,15 +10,28 @@ using Microsoft.CodeAnalysis.Scripting;
 
 namespace CSharpCLI
 {
-    public class Shell
+    internal class Shell
     {
         public bool Running { get; private set; }
 
         protected List<string> Buffer;
 
+        internal ScriptGlobals Globals;
+
+        protected Script Script;
+        protected ScriptState State;
+        private bool _resetting;
+
         public Shell()
         {
             Buffer = new List<string>();
+            Globals = new ScriptGlobals(this);
+            _resetting = false;
+        }
+
+        public void Reset()
+        {
+            _resetting = true;
         }
 
         public void Run()
@@ -34,12 +48,6 @@ namespace CSharpCLI
 
         protected void ProcessLine(string line)
         {
-            if (line == "?q")
-            {
-                Running = false;
-                return;
-            }
-
             if (line.EndsWith("\\"))
             {
                 Buffer.Add(line.Substring(0, line.Length - 1));
@@ -74,17 +82,42 @@ namespace CSharpCLI
             RunScript(script, "System", "System.IO", "System.Linq", "System.Collections.Generic", "System.Text");
         }
 
-        protected void RunScript(string script, params string[] imports)
+        protected void RunScript(string code, params string[] imports)
         {
             try
             {
                 ScriptOptions options = ScriptOptions.Default;
                 options = options.WithReferences("System");
+                options = options.WithReferences(Assembly.GetAssembly(this.GetType()));
                 options = options.AddImports(imports);
 
-                var result = CSharpScript.EvaluateAsync(script, options);
-                if (result?.Result != null)
-                    Console.WriteLine(result.Result.ToString());
+                if (Script == null)
+                    Script = CSharpScript.Create("", options, Globals.GetType());
+                
+                Script script = Script.ContinueWith(code, options);
+                ScriptState state = State == null ? script.RunAsync(Globals, ExceptionHandler).Result : script.RunFromAsync(State, ExceptionHandler).Result;
+
+                if (state.Exception != null)
+                {
+                    ExceptionHandler(state.Exception);
+                    return;
+                }
+
+                if (state.ReturnValue != null)
+                {
+                    Console.WriteLine("Returned: " + state.ReturnValue);
+                }
+
+                if (_resetting)
+                {
+                    Script = null;
+                    State = null;
+                }
+                else
+                {
+                    Script = script;
+                    State = state;
+                }
             }
             catch (CompilationErrorException ex)
             {
@@ -95,11 +128,19 @@ namespace CSharpCLI
             }
             catch (Exception ex)
             {
-                Console.BackgroundColor = ConsoleColor.Black;
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine(ex.Message + ": " + ex.StackTrace);
-                Console.ResetColor();
+                ExceptionHandler(ex);
             }
+        }
+
+        private bool ExceptionHandler(Exception ex)
+        {
+            Console.BackgroundColor = ConsoleColor.Red;
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(ex.Message + ": " + ex.StackTrace);
+            Console.ResetColor();
+
+            // Is Exception Caught?
+            return false;
         }
     }
 }

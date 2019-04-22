@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace CSharpCLI
 {
-    public static class Program
+    internal static class Program
     {
-        public static void Main(string[] args)
+        internal static void Main(string[] args)
         {
             Shell shell = new Shell();
             shell.Run();
