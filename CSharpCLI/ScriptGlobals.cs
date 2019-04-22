@@ -30,10 +30,5 @@ namespace CSharpCLI
         {
             Environment.Exit(0);
         }
-
-        public void Reset()
-        {
-            _shell.Reset();
-        }
     }
 }

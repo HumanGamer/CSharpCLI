@@ -20,18 +20,11 @@ namespace CSharpCLI
 
         protected Script Script;
         protected ScriptState State;
-        private bool _resetting;
 
         public Shell()
         {
             Buffer = new List<string>();
             Globals = new ScriptGlobals(this);
-            _resetting = false;
-        }
-
-        public void Reset()
-        {
-            _resetting = true;
         }
 
         public void Run()
@@ -108,23 +101,12 @@ namespace CSharpCLI
                     Console.WriteLine("Returned: " + state.ReturnValue);
                 }
 
-                if (_resetting)
-                {
-                    Script = null;
-                    State = null;
-                }
-                else
-                {
-                    Script = script;
-                    State = state;
-                }
+                Script = script;
+                State = state;
             }
             catch (CompilationErrorException ex)
             {
-                Console.BackgroundColor = ConsoleColor.Red;
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(ex.Message);
-                Console.ResetColor();
+                ExceptionHandler(ex);
             }
             catch (Exception ex)
             {
@@ -136,7 +118,14 @@ namespace CSharpCLI
         {
             Console.BackgroundColor = ConsoleColor.Red;
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine(ex.Message + ": " + ex.StackTrace);
+            Console.WriteLine(ex.Message + "\n" + ex.StackTrace);
+            if (ex.InnerException != null)
+            {
+                Console.BackgroundColor = ConsoleColor.Black;
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("Caused by: " + ex.InnerException.Message + "\n" + ex.StackTrace);
+            }
+
             Console.ResetColor();
 
             // Is Exception Caught?
